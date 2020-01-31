@@ -16,25 +16,28 @@ class Intl
     const LONG = \IntlDateFormatter::LONG;
     const FULL = \IntlDateFormatter::FULL;
     public $locale;
-    public $defaults = [
+
+    public $options = [
         'useLocalCalender' => true,
         'bundleName' => null,
         'fallback' => true,
+        'strict' => false,
     ];
+
     private $timezone;
     private $useLocalCalender;
 
     public function __construct(string $locale = null, string $timezone = null, array $options = []) {
-        $options = $options + $this->defaults;
+        $this->options = $options + $this->options;
         $this->locale = $locale ?: \Locale::getDefault();
         $this->timezone = $timezone;
 
-        $this->useLocalCalender = $options['useLocalCalender'];
+        $this->useLocalCalender = $this->options['useLocalCalender'];
     }
 
     public function get(\ResourceBundle $bundle, string $key) {
         $output = $bundle->get($key);
-        if ($output == null && intl_is_failure($bundle->getErrorCode())) {
+        if ($this->options['strict'] && intl_is_failure($bundle->getErrorCode())) {
             throw new Exception($bundle->getErrorMessage());
         }
         return $output;
@@ -48,12 +51,13 @@ class Intl
 
     /**
      * @param string $currency The 3-letter ISO 4217 currency code indicating the currency to use.
+     * @param bool $returnSymbol
      * @return string
      * @throws Exception
      */
-    public function currency(string $currency, bool $symbole = false): string {
+    public function currency(string $currency, bool $returnSymbol = false): ?string {
         $bundle = \ResourceBundle::create($this->locale, 'ICUDATA-curr');
-        return $this->get($bundle, 'Currencies')[$currency][$symbole ? 0 : 1];
+        return $this->get($bundle, 'Currencies')[$currency][$returnSymbol ? 0 : 1];
     }
 
     /**
@@ -64,7 +68,7 @@ class Intl
      * @return string
      * @throws Exception
      */
-    public function language($language): string {
+    public function language($language): ?string {
         $bundle = $this->getBundle('ICUDATA-lang')->get('Languages');
         return $this->get($bundle, strtolower($language));
     }
@@ -77,7 +81,7 @@ class Intl
      * @return string
      * @throws Exception
      */
-    public function country(string $country): string {
+    public function country(string $country): ?string {
         $bundle = $this->getBundle('ICUDATA-region')->get('Countries');
         return $this->get($bundle, strtoupper($country));
     }
@@ -88,22 +92,8 @@ class Intl
      * @return string
      * @throws Exception
      */
-    public function script(string $script): string {
+    public function script(string $script): ?string {
         return $this->getBundle('ICUDATA-lang')->get('Scripts')->get(ucwords($script));
-    }
-
-    public function calendar(string $calendar): string {
-        return $this->getBundle('ICUDATA-lang')->get('Types')->get('calendar')->get($calendar);
-    }
-
-    #endregion
-    public function message(string $message, array $args): string {
-        return \MessageFormatter::formatMessage($this->locale, $message, $args);
-    }
-
-    public function quote(string $quote): string {
-        $bundle = $this->getBundle('ICUDATA')->get('delimiters');
-        return $bundle->get('quotationStart') . $quote . $bundle->get('quotationEnd');
     }
 
     /**
@@ -112,7 +102,20 @@ class Intl
      * @return string
      * @throws Exception
      */
+    public function calendar(string $calendar): ?string {
+        return $this->getBundle('ICUDATA-lang')->get('Types')->get('calendar')->get($calendar);
+    }
 
+    #endregion
+
+    public function message(string $message, array $args): string {
+        return \MessageFormatter::formatMessage($this->locale, $message, $args);
+    }
+
+    public function quote(string $quote): string {
+        $bundle = $this->getBundle('ICUDATA')->get('delimiters');
+        return $bundle->get('quotationStart') . $quote . $bundle->get('quotationEnd');
+    }
 
     /**
      * @param float $value
